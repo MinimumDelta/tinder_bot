@@ -1,3 +1,9 @@
+# tinder_bot exclusions
+/src/output/*
+/oldcode/*
+/exclude/*
+/src/X-AUTH-KEY
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
