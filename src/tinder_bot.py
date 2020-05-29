@@ -26,7 +26,7 @@ def send_otp_code(phone_number):
     response = req.json()
     try:
         return response.get("data")['sms_sent']
-    except:
+    except Exception:
         return ""
 
 
@@ -36,7 +36,7 @@ def get_refresh_token(otp_code, phone_number):
     response = req.json()
     try:
         return response.get("data")["refresh_token"]  # if response.get("data")["validated"] else False
-    except:
+    except Exception:
         return ""
 
 
@@ -91,11 +91,11 @@ def dump_json(json_obj):
 
 def get_persons():
     req = requests.get(bot_config.GET_USERS_URL, headers=INTERNAL_HEADERS)
-    dict = {}
+    persons_dict = {}
     if valid_request(req):
         for person in req.json()["results"]:
             uid = person["_id"]
-            if uid in dict: continue  # name, age, profile_images, instagram_images
+            if uid in persons_dict: continue  # name, age, profile_images, instagram_images
             name = person["name"]
 
             age = datetime.datetime.now().year - int(
@@ -114,14 +114,14 @@ def get_persons():
                     for photo in person["instagram"]["photos"]:
                         if "image" in photo:  # sometimes the nodes dont contain pictures for some reason
                             instagram_images.append(photo["image"])
-            except:
-                print("[ERROR] Unable to dump Instagram json data. Dumping JSON batch.")
+            except Exception as e:
+                print("[ERROR] Unable to fetch Instagram data from profile. Dumping JSON data. |=> {}".format(e))
                 dump_json(person)
 
-            dict[uid] = Person(name, age, distance, bio, profile_images, instagram_images)
+            persons_dict[uid] = Person(name, age, distance, bio, profile_images, instagram_images)
     else:
         print("[ERROR] Invalid response code when fetching new batch of persons.")
-    return dict
+    return persons_dict
 
 
 def swipe(uid, right):
@@ -131,7 +131,7 @@ def swipe(uid, right):
         if req.json()["status"] != 200:
             print("[ERROR]\t\tSwipe rejected, consider getting a new key if this happens again.")
     except Exception as e:
-        print("[ERROR]\t\tSwipe failed due to unknown error. {}".format(e))
+        print("[ERROR]\t\tSwipe failed due to unknown error. |=> {}".format(e))
 
 
 def write_image_file(instagram, url, age, uid, index, total):
@@ -143,14 +143,14 @@ def write_image_file(instagram, url, age, uid, index, total):
         if not os.path.exists(path):
             try:
                 os.makedirs(path)
-            except:
-                print("[WARN] Thread collision when checking if path exists.")  # not a big deal, happens occasionally
+            except Exception as e:
+                print("[WARN] Thread collision when checking if path exists. |=> {}".format(e))  # not a big deal, happens occasionally
         try:
             filename = "{}/{}_{}_{}.{}".format(path, uid, "IG" if instagram else "PP", index, file_extension)
             with open(filename, 'wb') as f:
                 shutil.copyfileobj(r.raw, f)
-        except:
-            print("[WARN] Unable to write file to disk, skipping file.")
+        except Exception as e:
+            print("[WARN] Unable to write file to disk, skipping file. |=> {}".format(e))
     else:
         print("[WARN]\t\tFailed to download {} picture {}/{} from uid {}.".format(
             "Instagram" if instagram else "profile",
@@ -161,7 +161,8 @@ def start_bot(token_input):
     print("[INFO] Starting bot..")
     INTERNAL_HEADERS['x-auth-token'] = token_input
     now = datetime.datetime.now()
-    ostream = open("output/data_{}-{}-{}__{}-{}.txt".format(now.day, now.month, now.year, now.minute, now.second), 'a+', encoding='utf-16')
+    ostream = open("output/data_{}-{}-{}__{}-{}.txt".format(now.day, now.month, now.year, now.minute, now.second), 'a+',
+                   encoding='utf-16')
     swipes = 0
     with Pool(bot_config.POOL_WORKERS) as pool:
         while True:
@@ -204,14 +205,16 @@ def start_bot(token_input):
 
                         if len(workers) > 0:
                             [res.get(bot_config.WORKER_TIMEOUT_SECONDS) for res in workers]  # doesnt return anything
-                    except:
-                        print("[WARN] Timeout occurred when trying to download an image.")
+                    except Exception as e:
+                        print("[WARN] Timeout occurred when trying to download an image. |=> {}".format(e))
                 else:
                     print("[INFO]\t\tSkipping pictures on person age {}".format(person.age))
 
-                ostream.write('{};{};{};{};{};{};{};{}\n'.format(uid, person.name, person.age, person.distance, right,
-                                                                 person.profile_images, person.instagram_images,
-                                                                 repr(person.bio)))
+                if bot_config.LOG_PROFILE_DATA:
+                    ostream.write(
+                        '{};{};{};{};{};{};{};{}\n'.format(uid, person.name, person.age, person.distance, right,
+                                                           person.profile_images, person.instagram_images,
+                                                           repr(person.bio)))
 
 
 INTERNAL_HEADERS = bot_config.HEADERS.copy()  # these headers are used for non-auth actions

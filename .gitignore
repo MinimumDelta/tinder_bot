@@ -3,6 +3,7 @@
 /oldcode/*
 /exclude/*
 /src/X-AUTH-KEY
+/.idea/*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
